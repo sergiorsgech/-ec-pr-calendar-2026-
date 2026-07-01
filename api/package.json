@@ -1,0 +1,9 @@
+{
+  "name": "ec-pr-calendar-api",
+  "version": "1.0.0",
+  "description": "Azure Functions API for EC PR Calendar 2026",
+  "main": "index.js",
+  "dependencies": {
+    "@azure/data-tables": "^13.2.2"
+  }
+}
