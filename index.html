@@ -97,6 +97,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .results-lbl{font-size:11px;color:var(--muted);font-weight:600;padding:4px 2px 10px;text-transform:uppercase;letter-spacing:.6px}
 .camp-grid{display:flex;flex-direction:column;gap:10px}
 
+.past-section{margin-top:8px}
+.past-toggle{width:100%;display:flex;align-items:center;gap:8px;padding:12px 14px;border:none;background:rgba(0,0,0,.04);border-radius:12px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;text-align:left}
+.past-toggle:active{background:rgba(0,0,0,.08)}
+.past-toggle-icon{font-size:11px}
+.past-toggle-count{margin-left:auto;background:#e0e0e0;color:#666;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.past-body{padding-top:6px;display:flex;flex-direction:column;gap:10px}
 .camp-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;animation:fadeUp .18s ease}
 .camp-card.past{opacity:.55}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -535,9 +541,37 @@ function renderDir() {
     lbl.textContent = 'No results';
     return;
   }
-  grid.innerHTML = filtered.map(buildCampCard).join('');
+
+  const upcoming = filtered.filter(c => !isPast(c.event));
+  const past = filtered.filter(c => isPast(c.event));
+
+  let html = upcoming.map(buildCampCard).join('');
+
+  if (past.length > 0) {
+    const pastOpen = document.getElementById('pastToggle') ? document.getElementById('pastToggle').dataset.open === '1' : false;
+    html += '<div class="past-section">' +
+      '<button class="past-toggle" id="pastToggle" data-open="' + (pastOpen ? '1' : '0') + '" onclick="togglePast()">' +
+        '<span class="past-toggle-icon">' + (pastOpen ? '▲' : '▼') + '</span>' +
+        '✓ Past Events <span class="past-toggle-count">' + past.length + '</span>' +
+      '</button>' +
+      '<div class="past-body" id="pastBody" style="display:' + (pastOpen ? 'block' : 'none') + '">' +
+        past.map(buildCampCard).join('') +
+      '</div>' +
+    '</div>';
+  }
+
+  grid.innerHTML = html;
   lbl.textContent = filtered.length + ' campaign' + (filtered.length !== 1 ? 's' : '') +
     (activeCat !== 'all' ? ' · ' + CAT_NAME[activeCat] : '') + (q ? ' · "' + searchQ + '"' : '');
+}
+
+function togglePast() {
+  const btn = document.getElementById('pastToggle');
+  const body = document.getElementById('pastBody');
+  const isOpen = btn.dataset.open === '1';
+  btn.dataset.open = isOpen ? '0' : '1';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.querySelector('.past-toggle-icon').textContent = isOpen ? '▼' : '▲';
 }
 
 function setCat(cat) {
