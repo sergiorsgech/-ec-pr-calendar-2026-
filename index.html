@@ -220,6 +220,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .ef-save{flex:1;background:var(--brand);color:var(--gold);border:none;border-radius:10px;padding:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer}
 .ef-cancel{padding:12px 16px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
 
+.fc-cat{font-size:10px;font-weight:700;margin-top:1px}
+.wsl-core{color:#6A0DAD}
+.brand-links{margin-top:7px;display:flex;flex-wrap:wrap}
+.link-pill{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:5px 12px;border-radius:9px;margin:0 6px 6px 0;color:#fff;text-decoration:none;white-space:nowrap}
+.link-pill:active{opacity:.75}
+.brand-edit-btn{display:none;margin-top:2px;font-size:11px;font-weight:600;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 9px;cursor:pointer;align-self:flex-start}
+body.editing .brand-edit-btn{display:inline-block}
+
 /* Edit-mode controls on campaign cards */
 .cc-edit-actions{display:none;gap:6px;padding:8px 14px;border-top:1px solid var(--border);background:#FAFBFC}
 body.editing .cc-edit-actions{display:flex}
@@ -307,6 +315,31 @@ body.editing .add-btn{display:block}
 <!-- PAGE 2: WEEKLY FOCUS -->
 <div class="page" id="page-week">
   <div class="week-picker" id="weekPicker"></div>
+  <div class="edit-form" id="brand-form">
+    <div class="ef-hdr" id="brand-form-hdr">✏️ Edit Links</div>
+    <div class="ef-body">
+      <div class="ef-row">
+        <input id="bf-label1" type="text" placeholder="Button 1 name" maxlength="24">
+        <input id="bf-url1" type="url" placeholder="https://…">
+      </div>
+      <div class="ef-row">
+        <input id="bf-label2" type="text" placeholder="Button 2 name" maxlength="24">
+        <input id="bf-url2" type="url" placeholder="https://…">
+      </div>
+      <div class="ef-row">
+        <input id="bf-label3" type="text" placeholder="Button 3 name" maxlength="24">
+        <input id="bf-url3" type="url" placeholder="https://…">
+      </div>
+      <div class="ef-row">
+        <input id="bf-label4" type="text" placeholder="Button 4 name" maxlength="24">
+        <input id="bf-url4" type="url" placeholder="https://…">
+      </div>
+      <div class="ef-btns">
+        <button class="ef-save" onclick="saveBrandForm()">Save Links</button>
+        <button class="ef-cancel" onclick="closeBrandForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
   <div class="week-cards" id="weekCard"></div>
   <div class="week-nav">
     <button class="week-nav-btn" onclick="wNav(-1)">←</button>
@@ -393,6 +426,7 @@ let activeCat = 'all', searchQ = '', selectedMonth = new Date().getMonth();
 let prMon = -1, curWeek = 0;
 let editing = false, editPin = null, dirty = false;
 let campEditId = null, prEditId = null;
+let BLINKS = [];     // Core Brand link records from Azure
 
 // ── DATE HELPERS ──────────────────────────────────────────────
 function today() { const d = new Date(); d.setHours(0,0,0,0); return d; }
@@ -434,6 +468,7 @@ async function loadAll() {
   try {
     const [c, p] = await Promise.all([apiGet('getCampaigns'), apiGet('getEvents')]);
     CAMPS = c; PR = p;
+    try { BLINKS = await apiGet('getBrandLinks'); } catch (e2) { BLINKS = []; }
     setSync('Up to date', 'ok');
     setTimeout(() => setSync(''), 1500);
   } catch (e) {
@@ -668,6 +703,54 @@ function buildWeekPicker() {
 }
 function selWeek(i) { curWeek = i; buildWeekPicker(); }
 function wNav(dir) { const n = curWeek + dir; if (n >= 0 && n < MONDAYS.length) { curWeek = n; buildWeekPicker(); } }
+function buildBrandCard(id, name, color) {
+  const rec = BLINKS.find(b => b.id === id) || {};
+  const pills = [1, 2, 3, 4]
+    .map(n => ({ label: rec['label' + n], url: rec['url' + n] }))
+    .filter(l => l.label && l.url)
+    .map(l => '<a class="link-pill" style="background:' + color + '" href="' + l.url +
+              '" target="_blank" rel="noopener">' + l.label + '</a>')
+    .join('');
+  return '<div class="fc"><div class="fc-stripe" style="background:' + color + '"></div><div class="fc-body">' +
+    '<div class="fc-name">' + name + '</div>' +
+    '<div class="fc-cat" style="color:' + color + '">Core Brand</div>' +
+    (pills ? '<div class="brand-links">' + pills + '</div>' : '') +
+    '<button class="brand-edit-btn" onclick="openBrandForm(\'' + id + '\',\'' + name + '\')">✏️ Edit Links</button>' +
+    '</div></div>';
+}
+
+// Core Brand links are global — the same buttons show on every week.
+let brandEditId = null;
+function openBrandForm(id, name) {
+  brandEditId = id;
+  const rec = BLINKS.find(b => b.id === id) || {};
+  document.getElementById('brand-form-hdr').textContent = '✏️ Edit Links — ' + name;
+  for (let n = 1; n <= 4; n++) {
+    document.getElementById('bf-label' + n).value = rec['label' + n] || '';
+    document.getElementById('bf-url' + n).value = rec['url' + n] || '';
+  }
+  const f = document.getElementById('brand-form');
+  f.classList.add('show');
+  f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function closeBrandForm() {
+  document.getElementById('brand-form').classList.remove('show');
+  brandEditId = null;
+}
+function saveBrandForm() {
+  if (!brandEditId) return;
+  const obj = { id: brandEditId };
+  for (let n = 1; n <= 4; n++) {
+    obj['label' + n] = document.getElementById('bf-label' + n).value.trim();
+    obj['url' + n] = document.getElementById('bf-url' + n).value.trim();
+  }
+  const i = BLINKS.findIndex(b => b.id === brandEditId);
+  if (i >= 0) BLINKS[i] = obj; else BLINKS.push(obj);
+  closeBrandForm();
+  markDirty();
+  renderWeek();
+}
+
 function renderWeek() {
   const start = MONDAYS[curWeek], end = new Date(start); end.setDate(end.getDate() + 6);
   const inWeek = (iso) => { const d = parseDate(iso); return d && d >= start && d <= end; };
@@ -692,6 +775,10 @@ function renderWeek() {
   });
   const prThisWeek = PR.filter(e => inWeek(e.date));
 
+  const coreHtml = '<div class="week-sec-lbl wsl-core">★ Core Brands <span>always</span></div>' +
+    buildBrandCard('elclasificado', 'El Clasificado', '#6A0DAD') +
+    buildBrandCard('masclientes', 'Mas Clientes', '#6ABF1E');
+
   let html = '';
   const line = (c) => '<div class="fc"><div class="fc-stripe" style="background:' + getColor(c.cat) + '"></div><div class="fc-body"><div class="fc-name">' + c.label + '</div><div class="fc-dates"><div class="fc-date-item"><span class="fc-date-lbl">' + (c.print ? 'Pub' : 'Event') + '</span><span class="fc-date-val red">' + fmtDate(c.event) + '</span></div>' + (c.dl ? '<div class="fc-date-item"><span class="fc-date-lbl">Deadline</span><span class="fc-date-val orange">' + fmtDate(c.dl) + '</span></div>' : '') + '</div></div></div>';
 
@@ -702,7 +789,7 @@ function renderWeek() {
     prThisWeek.map(e => '<div class="fc"><div class="fc-stripe" style="background:' + (PR_CAT_CLR[e.cat]||'#888') + '"></div><div class="fc-body"><div class="fc-name">' + e.name + '</div><div class="fc-dates"><div class="fc-date-item"><span class="fc-date-lbl">Date</span><span class="fc-date-val red">' + fmtDate(e.date) + '</span></div></div></div></div>').join('');
 
   if (!html) html = '<div class="no-results"><div class="nr-icon">📅</div><p>Nothing scheduled this week.</p></div>';
-  document.getElementById('weekCard').innerHTML = html;
+  document.getElementById('weekCard').innerHTML = coreHtml + html;
 }
 
 // ── PR EVENTS ─────────────────────────────────────────────────
@@ -782,7 +869,7 @@ function exitEdit() {
   document.getElementById('editBtnLbl').textContent = 'Edit';
   document.querySelector('#editBtn span').textContent = '🔒';
   document.getElementById('saveBar').classList.remove('show');
-  closeCampForm(); closePrForm();
+  closeCampForm(); closePrForm(); closeBrandForm();
   prRender();
 }
 function markDirty() {
@@ -902,6 +989,7 @@ async function saveAll() {
   try {
     await apiSave('saveCampaigns', CAMPS);
     await apiSave('saveEvents', PR);
+    await apiSave('saveBrandLinks', BLINKS);
     dirty = false;
     bar.classList.remove('show');
     setSync('Saved — everyone sees this now', 'ok');
